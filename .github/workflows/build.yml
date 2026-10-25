@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Download Metal Toolchain
+        # Xcode 26+ ships the Metal toolchain as a separate component
+        run: |
+          xcodebuild -downloadComponent MetalToolchain || echo "Metal Toolchain download skipped"
+
+      - name: Build (iOS Simulator, unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild -project BeautyCam.xcodeproj -scheme BeautyCam \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            build CODE_SIGNING_ALLOWED=NO
