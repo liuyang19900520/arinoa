@@ -1,0 +1,43 @@
+name: BeautyCam
+options:
+  bundleIdPrefix: com.arinoa
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  BeautyCam:
+    type: application
+    platform: iOS
+    sources: [BeautyCam]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.arinoa.beautycam
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSCameraUsageDescription: "用于实时美颜拍照"
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "用于保存美颜后的照片和视频"
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "用于录制视频声音"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_CFBundleDisplayName: Arinoa美颜
+        TARGETED_DEVICE_FAMILY: "1"
+        # Core Image Metal kernels
+        MTL_COMPILER_FLAGS: -fcikernel
+        MTLLINKER_FLAGS: -fcikernel
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 3T7MJA53W9
+    scheme:
+      testTargets: [BeautyCamUITests]
+  BeautyCamUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [BeautyCamUITests]
+    dependencies:
+      - target: BeautyCam
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.arinoa.beautycam.uitests
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: BeautyCam
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 3T7MJA53W9
