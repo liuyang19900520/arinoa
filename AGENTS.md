@@ -15,3 +15,11 @@ Arinoa is an iOS beauty camera app (Swift, iOS 17+). The current target and bund
 - The CI build must pass before a PR is ready for review.
 
 See `PLAN.md` for the current to-do list.
+
+## Release flow (Yang's standard)
+- `develop` is where work is integrated and tested. `master` always equals the version live on the App Store.
+- Every change goes `feature/*` / `claude/*` / `codex/*` → PR into `develop`. Pushes to `develop` upload a TestFlight build.
+- Yang verifies the build in TestFlight, then says "推送 App Store". Only then submit for review.
+- After Apple approves and the app is live, merge `develop` into `master` and tag `vX.Y.Z`. No release branches.
+- Urgent fix for live users: `hotfix/*` from `master` → PR into `master`, tag, then merge back into `develop`.
+- Never merge, submit for review, delete branches, or change secrets/default branch without Yang's explicit approval.
