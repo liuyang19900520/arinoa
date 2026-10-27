@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var panel = Panel.none
     @State private var beautyItem = BeautyItem.smooth
+    @State private var showSettings = false
 
     // Preview gestures
     @State private var pressStart: CGPoint?
@@ -75,6 +76,7 @@ struct ContentView: View {
             if phase == .active { vm.appBecameActive() }
             if phase == .background { vm.appEnteredBackground() }
         }
+        .sheet(isPresented: $showSettings) { SettingsSheet() }
     }
 
     // MARK: - Preview
@@ -182,10 +184,10 @@ struct ContentView: View {
         }
     }
 
-    private func statusView(_ status: String) -> some View {
+    private func statusView(_ status: CameraStatus) -> some View {
         VStack(spacing: 14) {
-            Text(status).foregroundStyle(.white.opacity(0.8))
-            if status.contains("权限") {
+            Text(status.message).foregroundStyle(.white.opacity(0.8))
+            if status.needsSettings {
                 Button("去设置") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 }
@@ -199,6 +201,8 @@ struct ContentView: View {
     /// Same controls in photo and video mode, each in a fixed-size slot so nothing shifts or stretches.
     private var topBar: some View {
         HStack(spacing: 6) {
+            topIcon("gearshape", on: false) { showSettings = true }
+                .accessibilityIdentifier("settings")
             if vm.photoMode {
                 if CameraManager.isAvailable {
                     topIcon("camera", on: false) { vm.backToCamera() }
@@ -317,7 +321,7 @@ struct ContentView: View {
             ZStack {
                 HStack(spacing: 28) {
                     ForEach(BeautyViewModel.CaptureMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue)
+                        Text(LocalizedStringKey(mode.rawValue))
                             .accessibilityIdentifier("mode-\(mode.rawValue)")
                             .accessibilityAddTraits(.isButton)
                             .font(.subheadline.weight(vm.captureMode == mode ? .semibold : .regular))
@@ -401,7 +405,7 @@ struct ContentView: View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Image(systemName: icon).font(.title2)
-                Text(title).font(.caption)
+                Text(LocalizedStringKey(title)).font(.caption)
             }
             .foregroundStyle(active ? Color.pink : .white)
             .frame(width: 56)
@@ -418,7 +422,7 @@ struct ContentView: View {
             HStack(spacing: 10) {
                 ForEach(BeautyPreset.all) { preset in
                     let on = preset.matches(vm.params)
-                    Text(preset.name).font(.subheadline.weight(on ? .semibold : .regular))
+                    Text(LocalizedStringKey(preset.name)).font(.subheadline.weight(on ? .semibold : .regular))
                         .padding(.horizontal, 14).padding(.vertical, 6)
                         .background(Capsule().fill(on ? Color.pink.opacity(0.3) : .white.opacity(0.12)))
                         .overlay(Capsule().strokeBorder(on ? Color.pink : .clear, lineWidth: 1.5))
@@ -439,7 +443,7 @@ struct ContentView: View {
                             .frame(width: 50, height: 50)
                             .background(Circle().fill(on ? Color.pink.opacity(0.25) : .white.opacity(0.12)))
                             .overlay(Circle().strokeBorder(on ? Color.pink : .clear, lineWidth: 2))
-                        Text(item.rawValue).font(.caption)
+                        Text(LocalizedStringKey(item.rawValue)).font(.caption)
                     }
                     .foregroundStyle(on ? Color.pink : .white)
                     .frame(maxWidth: .infinity)
@@ -470,7 +474,7 @@ struct ContentView: View {
                                         Image(systemName: "circle.slash").foregroundStyle(.white).padding(.bottom, 20)
                                     }
                                 }
-                            Text(style.name).font(.caption)
+                            Text(LocalizedStringKey(style.name)).font(.caption)
                                 .foregroundStyle(on ? Color.pink : .white)
                         }
                         .onTapGesture { vm.selectStyle(style) }

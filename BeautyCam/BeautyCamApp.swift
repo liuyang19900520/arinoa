@@ -4,8 +4,13 @@ import SwiftUI
 
 @main
 struct BeautyCamApp: App {
+    @AppStorage(AppLanguage.storageKey) private var languageRaw = AppLanguage.system.rawValue
+
     var body: some Scene {
-        WindowGroup { ContentView() }
+        WindowGroup {
+            ContentView()
+                .environment(\.locale, (AppLanguage(rawValue: languageRaw) ?? .system).locale)
+        }
     }
 }
 
@@ -34,7 +39,7 @@ final class BeautyViewModel: ObservableObject {
     @Published var captureMode = CaptureMode.photo { didSet { captureModeChanged() } }
     @Published var recordingSince: Date?
     /// Shown over the preview until the first camera frame arrives.
-    @Published var cameraStatus: String? = "正在打开相机…"
+    @Published var cameraStatus: CameraStatus? = CameraStatus(message: L10n.t("正在打开相机…"), needsSettings: false)
 
     // Camera controls
     @Published var cameraState = CameraState()
@@ -82,8 +87,14 @@ final class BeautyViewModel: ObservableObject {
 
     init() {
         camera.onFrame = { [weak self] image in self?.renderer.image = image }
-        camera.onStatus = { [weak self] message in
-            Task { @MainActor in self?.cameraStatus = message }
+        camera.onStatus = { [weak self] status in
+            Task { @MainActor in
+                self?.cameraStatus = status
+                // The first frame just showed up: the live path is warm, so use the spare cycles to
+                // precompute the other filter LUTs instead of making the user wait the first time
+                // they pick one.
+                if status == nil { BeautyEngine.shared.prewarmStyles() }
+            }
         }
         camera.onState = { [weak self] state in
             guard let self else { return }
@@ -115,6 +126,9 @@ final class BeautyViewModel: ObservableObject {
         }
         renderer.fill = !photoMode
         orientation.start()
+        // Load the CIKernels / CIContext off the main thread, concurrently with the camera queue's
+        // own start-up, so the first camera frame doesn't stall on cold kernel loading.
+        Task.detached(priority: .utility) { _ = BeautyEngine.shared }
     }
 
     /// Rotation that makes what the camera captures right now upright (phone held landscape etc.).
@@ -174,7 +188,7 @@ final class BeautyViewModel: ObservableObject {
         photoMode = true
         renderer.fill = false
         camera.stop()
-        toast = face == nil ? "未检测到人脸：美颜不生效" : "已检测到人脸"
+        toast = face == nil ? L10n.t("未检测到人脸：美颜不生效") : L10n.t("已检测到人脸")
         apply()
     }
 
@@ -183,7 +197,7 @@ final class BeautyViewModel: ObservableObject {
         photoMode = false
         photo = nil
         renderer.fill = true
-        cameraStatus = "正在打开相机…"
+        cameraStatus = CameraStatus(message: L10n.t("正在打开相机…"), needsSettings: false)
         camera.start()
         apply()
     }
@@ -233,7 +247,7 @@ final class BeautyViewModel: ObservableObject {
         camera.setAEAFLocked(tapToShoot)
         focusMark = nil
         if !tapToShoot { exposureBias = 0 }
-        toast = tapToShoot ? "轻点屏幕拍照（对焦/曝光已锁定）" : "已恢复点击对焦"
+        toast = tapToShoot ? L10n.t("轻点屏幕拍照（对焦/曝光已锁定）") : L10n.t("已恢复点击对焦")
     }
 
     /// A plain tap on the preview: shoots in tap-to-shoot mode, otherwise focuses there.
@@ -263,7 +277,7 @@ final class BeautyViewModel: ObservableObject {
     func cycleFlash() {
         if captureMode == .video {
             guard cameraState.hasTorch else {
-                toast = "前置摄像头不支持补光灯"
+                toast = L10n.t("前置摄像头不支持补光灯")
                 return
             }
             torchOn.toggle()
@@ -343,7 +357,7 @@ final class BeautyViewModel: ObservableObject {
                     self.isCapturing = false
                     self.endScreenFlash()
                     guard let (data, thumb) = result else {
-                        self.toast = "拍照失败"
+                        self.toast = L10n.t("拍照失败")
                         return
                     }
                     self.lastThumbnail = thumb
@@ -399,7 +413,7 @@ final class BeautyViewModel: ObservableObject {
         recordingSince = nil
         camera.stopRecording { url in
             guard let url else {
-                Task { @MainActor in self.toast = "录制失败" }
+                Task { @MainActor in self.toast = L10n.t("录制失败") }
                 done?()
                 return
             }
@@ -424,7 +438,7 @@ final class BeautyViewModel: ObservableObject {
     nonisolated private func withAddPermission(_ action: @escaping () -> Void) {
         PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
             guard status == .authorized || status == .limited else {
-                Task { @MainActor in self.toast = "没有相册权限" }
+                Task { @MainActor in self.toast = L10n.t("没有相册权限") }
                 return
             }
             action()
@@ -436,7 +450,7 @@ final class BeautyViewModel: ObservableObject {
             PHPhotoLibrary.shared().performChanges {
                 PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
             } completionHandler: { ok, _ in
-                if !ok { Task { @MainActor in self.toast = "保存失败" } }
+                if !ok { Task { @MainActor in self.toast = L10n.t("保存失败") } }
             }
         }
     }
@@ -447,7 +461,7 @@ final class BeautyViewModel: ObservableObject {
                 PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
             } completionHandler: { ok, _ in
                 try? FileManager.default.removeItem(at: url)
-                Task { @MainActor in self.toast = ok ? "视频已保存到相册" : "保存失败" }
+                Task { @MainActor in self.toast = ok ? L10n.t("视频已保存到相册") : L10n.t("保存失败") }
                 done?()
             }
         }
@@ -459,6 +473,6 @@ final class BeautyViewModel: ObservableObject {
         else { return }
         lastThumbnail = thumb
         savePhotoData(data)
-        toast = "已保存到相册"
+        toast = L10n.t("已保存到相册")
     }
 }

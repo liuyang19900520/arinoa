@@ -18,6 +18,11 @@ final class PreviewRenderer: NSObject, MTKViewDelegate {
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
+    /// Builds the Metal command queue + Core Image context ahead of the first camera frame, so that
+    /// frame's render doesn't stall the display link with cold Metal/CoreImage set-up. Must run on
+    /// the main thread, same as `draw(in:)`, so the lazy properties only ever see one caller.
+    func prewarm() { _ = context }
+
     func draw(in view: MTKView) {
         guard let image, let drawable = view.currentDrawable,
               let buffer = queue.makeCommandBuffer() else { return }
@@ -59,6 +64,7 @@ struct MetalPreview: UIViewRepresentable {
                 if event.phase == .ended { coordinator.onCaptureEvent?() }
             })
         }
+        DispatchQueue.main.async { renderer.prewarm() }
         return view
     }
 

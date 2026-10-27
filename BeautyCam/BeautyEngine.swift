@@ -128,6 +128,13 @@ final class BeautyEngine {
         warpKernel = try! CIKernel(functionName: "beautyWarp", fromMetalLibraryData: data)
     }
 
+    /// Precomputes the LUT cubes for every filter style in the background, so switching styles
+    /// later never pays for the first-time computation. Call once the live preview is already
+    /// showing frames, so this doesn't compete with camera start-up for CPU.
+    func prewarmStyles() {
+        DispatchQueue.global(qos: .utility).async { [styles] in styles.prewarmAll() }
+    }
+
     func process(_ input: CIImage, face: FaceInfo?, params p: BeautyParams) -> CIImage {
         if p.bypass { return input }
         let extent = input.extent

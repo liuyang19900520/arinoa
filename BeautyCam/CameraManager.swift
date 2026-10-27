@@ -13,6 +13,13 @@ enum FlashMode: CaseIterable {
     }
 }
 
+/// A user-facing camera status message, pre-resolved for the current app language (see `L10n`).
+struct CameraStatus: Equatable {
+    let message: String
+    /// Whether the UI should offer a shortcut to the Settings app (permission denied).
+    let needsSettings: Bool
+}
+
 /// Snapshot of device capabilities the UI needs. Delivered on the main queue.
 struct CameraState {
     var position: AVCaptureDevice.Position = .back
@@ -64,8 +71,8 @@ final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 
     /// Called on the camera queue with each processed frame.
     var onFrame: ((CIImage) -> Void)?
-    /// Called with a user-facing message when the camera cannot start (nil once frames flow).
-    var onStatus: ((String?) -> Void)?
+    /// Called with a user-facing status when the camera cannot start (nil once frames flow).
+    var onStatus: ((CameraStatus?) -> Void)?
     /// Device capabilities changed (camera switched, format changed). Main queue.
     var onState: ((CameraState) -> Void)?
     /// The focus point was reset by the system (subject area changed). Main queue.
@@ -91,11 +98,15 @@ final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
             print("[BeautyCam] requesting camera access")
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 print("[BeautyCam] camera access granted=\(granted)")
-                if granted { self.queue.async { self.run() } } else { self.onStatus?("没有相机权限，请在 设置 > Arinoa美颜 中打开相机") }
+                if granted {
+                    self.queue.async { self.run() }
+                } else {
+                    self.onStatus?(CameraStatus(message: L10n.t("没有相机权限，请在 设置 > Arinoa美颜 中打开相机"), needsSettings: true))
+                }
             }
         default:
             print("[BeautyCam] camera access denied/restricted")
-            onStatus?("没有相机权限，请在 设置 > Arinoa美颜 中打开相机")
+            onStatus?(CameraStatus(message: L10n.t("没有相机权限，请在 设置 > Arinoa美颜 中打开相机"), needsSettings: true))
         }
     }
 
@@ -104,7 +115,7 @@ final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
         guard !session.isRunning else { return }
         session.startRunning()
         print("[BeautyCam] session running=\(session.isRunning) inputs=\(session.inputs.count) outputs=\(session.outputs.count)")
-        if !session.isRunning { onStatus?("相机启动失败") }
+        if !session.isRunning { onStatus?(CameraStatus(message: L10n.t("相机启动失败"), needsSettings: false)) }
     }
 
     func stop() { queue.async { self.session.stopRunning() } }
@@ -177,21 +188,21 @@ final class CameraManager: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
         videoInput = nil
         guard let device = bestDevice(for: position) else {
             print("[BeautyCam] no camera device for position \(position.rawValue)")
-            onStatus?("找不到摄像头")
+            onStatus?(CameraStatus(message: L10n.t("找不到摄像头"), needsSettings: false))
             return
         }
         do {
             let input = try AVCaptureDeviceInput(device: device)
             guard session.canAddInput(input) else {
                 print("[BeautyCam] cannot add camera input")
-                onStatus?("无法使用摄像头")
+                onStatus?(CameraStatus(message: L10n.t("无法使用摄像头"), needsSettings: false))
                 return
             }
             session.addInput(input)
             videoInput = input
         } catch {
             print("[BeautyCam] camera input error: \(error)")
-            onStatus?("无法打开摄像头")
+            onStatus?(CameraStatus(message: L10n.t("无法打开摄像头"), needsSettings: false))
             return
         }
 
