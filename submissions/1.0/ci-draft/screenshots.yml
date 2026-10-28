@@ -1,0 +1,24 @@
+# 草稿：未启用。放到 .github/workflows/ 后才生效（建议放在 ci/screenshots 分支、只用 workflow_dispatch）。
+# 注意：模拟器没有摄像头，相机预览会是黑屏/错误提示。需要 App 侧加一个 UI 测试用的
+# 启动参数（如 -UITestDemoImage）用静态示例图代替相机帧，否则截图没有意义。
+name: screenshots
+on: workflow_dispatch
+jobs:
+  shots:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        device: ["iPhone 17 Pro Max", "iPhone 8 Plus"]   # 6.9" / 5.5"(可选)；以 runner 上实际存在的模拟器为准
+        lang: ["zh-Hans", "ja", "en"]
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen && xcodegen generate
+      - run: |
+          xcodebuild test -project BeautyCam.xcodeproj -scheme BeautyCam \
+            -destination "platform=iOS Simulator,name=${{ matrix.device }}" \
+            -testLanguage ${{ matrix.lang }} -resultBundlePath shots.xcresult \
+            -only-testing:BeautyCamUITests CODE_SIGNING_ALLOWED=NO
+      - run: |
+          mkdir -p out && xcrun xcresulttool export attachments --path shots.xcresult --output-path out
+      - uses: actions/upload-artifact@v4
+        with: { name: "shots-${{ matrix.device }}-${{ matrix.lang }}", path: out }

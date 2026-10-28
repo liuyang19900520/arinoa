@@ -1,0 +1,1 @@
+First release of Arinoa. Real-time beauty camera with filters, video recording, photo retouching, and in-app language switching (English / 日本語 / 简体中文).
