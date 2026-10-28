@@ -1,0 +1,11 @@
+Arinoa is a camera app. No account or login is required, and there is no in-app purchase.
+
+How to test:
+1. Launch the app and allow Camera access (used for the live beauty preview). Microphone access is requested only when recording video (records the video's sound). Photo Library "add" access is requested when saving.
+2. Adjust the beauty sliders / presets and filter styles; the preview updates in real time (face detection uses Apple's on-device Vision framework).
+3. Tap the shutter to take a photo, or switch to video mode and record. Results are saved to the Photos library.
+4. Tap the photo button to pick an existing photo (system PhotosPicker, no library permission needed) and retouch it.
+5. Settings (gear) > Language switches between English / 日本語 / 简体中文 without restarting.
+
+All image processing happens on device. The app makes no network requests, collects no data, has no ads, and contains no third-party SDKs.
+A real device with a camera is needed for steps 1-3; the simulator has no camera.
