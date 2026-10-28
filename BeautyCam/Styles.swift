@@ -309,6 +309,13 @@ final class StyleRenderer {
         return values.withUnsafeBufferPointer { Data(buffer: $0) }
     }
 
+    /// Precomputes every non-identity style's LUT, so picking a filter later never pays for the
+    /// first-time computation. `cube(for:)` is lock-protected, so this is safe to call concurrently
+    /// with the camera queue's own per-frame `apply` calls; call it off the main thread.
+    func prewarmAll() {
+        for style in StylePreset.all where style.id != 0 { _ = cube(for: style) }
+    }
+
     func apply(_ style: StylePreset, intensity: Float, to image: CIImage) -> CIImage {
         guard style.id != 0, intensity > 0.01 else { return image }
         let extent = image.extent

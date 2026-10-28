@@ -1,13 +1,21 @@
 name: BeautyCam
 options:
   bundleIdPrefix: com.arinoa
+  developmentLanguage: en
   deploymentTarget:
     iOS: "17.0"
 targets:
   BeautyCam:
     type: application
     platform: iOS
-    sources: [BeautyCam]
+    sources:
+      - path: BeautyCam
+        excludes:
+          - Info.plist
+    info:
+      path: BeautyCam/Info.plist
+      properties:
+        CFBundleLocalizations: [en, ja, zh-Hans]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.arinoa.beautycam
