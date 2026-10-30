@@ -1,7 +1,7 @@
-name: asc-status
+name: asc-signing
 on:
   push:
-    branches: [ci/asc-status]
+    branches: [ci/asc-signing]
 jobs:
   status:
     runs-on: ubuntu-latest
@@ -15,4 +15,4 @@ jobs:
         run: |
           pip install -q pyjwt cryptography
           bash scripts/ci/write-asc-key.sh /tmp/asc.p8
-          python3 scripts/ci/asc_status.py
+          python3 scripts/ci/asc_signing.py
