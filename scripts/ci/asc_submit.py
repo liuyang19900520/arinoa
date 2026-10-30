@@ -52,7 +52,8 @@ if MODE in("apply","check","submit"):
     ta=get(f"/v2/appAvailabilities/{APP}/territoryAvailabilities?limit=200&include=territory")["data"]
     print("UNAVAILABLE",[t["relationships"]["territory"]["data"]["id"] for t in ta if not t["attributes"]["available"]],"of",len(ta))
 if MODE=="submit":
-    r=req("POST","/v1/reviewSubmissions",{"data":{"type":"reviewSubmissions","attributes":{"platform":"IOS"},"relationships":{"app":{"data":{"type":"apps","id":APP}}}}})
+    ex=[x for x in get(f"/v1/reviewSubmissions?filter[app]={APP}&filter[state]=READY_FOR_REVIEW").get("data",[])]
+    r={"data":ex[0]} if ex else req("POST","/v1/reviewSubmissions",{"data":{"type":"reviewSubmissions","attributes":{"platform":"IOS"},"relationships":{"app":{"data":{"type":"apps","id":APP}}}}})
     p("reviewSubmission",r)
     if "error" not in r:
         rid=r["data"]["id"]
