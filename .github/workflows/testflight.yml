@@ -3,11 +3,23 @@
 # add a push trigger once a develop branch exists. Uploading never submits
 # for review.
 #
-# Needs secrets ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8.
+# Needs secrets ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (upload), plus the fixed
+# signing identity: DIST_CERT_P12_BASE64, DIST_CERT_PASSWORD,
+# PROVISIONING_PROFILE_BASE64 (App Store profile for com.arinoa.beautycam).
+# Without them the run stops before signing instead of letting Xcode mint a
+# new certificate on every fresh runner (that hit Apple's certificate cap).
 name: TestFlight
 
 on:
   workflow_dispatch:
+    inputs:
+      allow_auto_signing:
+        description: "Fallback: let Xcode create certificates/profiles (uses up Apple's certificate quota)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 concurrency:
   group: testflight
@@ -50,13 +62,33 @@ jobs:
           security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
           security default-keychain -s "$KEYCHAIN"
+          echo "KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+          echo "::add-mask::$PASSWORD"
+
+      # Fixed signing: one stable Apple Distribution certificate and one App
+      # Store provisioning profile, stored as secrets. Nothing is created.
+      - name: Install signing certificate and profile
+        if: ${{ !inputs.allow_auto_signing }}
+        env:
+          DIST_CERT_P12_BASE64: ${{ secrets.DIST_CERT_P12_BASE64 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+        run: scripts/ci/install-signing.sh
 
       - name: Archive and upload
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          SIGNING: ${{ inputs.allow_auto_signing && 'automatic' || 'manual' }}
         run: scripts/ci/testflight.sh
+
+      - name: Remove keychain and profile
+        if: always()
+        run: |
+          [[ -n "${KEYCHAIN:-}" ]] && security delete-keychain "$KEYCHAIN" || true
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/arinoa-ci.mobileprovision"
 
       - name: Summary
         run: echo "Uploaded build $BUILD_NUMBER. Check TestFlight in App Store Connect once processing finishes." >> "$GITHUB_STEP_SUMMARY"

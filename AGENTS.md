@@ -23,3 +23,21 @@ See `PLAN.md` for the current to-do list.
 - After Apple approves and the app is live, merge `develop` into `master` and tag `vX.Y.Z`. No release branches.
 - Urgent fix for live users: `hotfix/*` from `master` → PR into `master`, tag, then merge back into `develop`.
 - Never merge, submit for review, delete branches, or change secrets/default branch without Yang's explicit approval.
+
+## Release signing (CI)
+
+TestFlight uploads sign with one fixed Apple Distribution certificate and one
+App Store provisioning profile for `com.arinoa.beautycam`, stored as repository
+secrets. CI never creates certificates or profiles; letting it do so (automatic
+signing with `-allowProvisioningUpdates` on fresh runners) minted a new
+certificate per run and hit Apple's certificate cap.
+
+| Secret | Content |
+| --- | --- |
+| `DIST_CERT_P12_BASE64` | base64 of the Apple Distribution certificate + private key exported as .p12 |
+| `DIST_CERT_PASSWORD` | password of that .p12 |
+| `PROVISIONING_PROFILE_BASE64` | base64 of the App Store profile (.mobileprovision) |
+
+The profile expires after a year; renew it in the developer portal and update
+`PROVISIONING_PROFILE_BASE64`. `allow_auto_signing` on the TestFlight workflow is
+an emergency fallback only.

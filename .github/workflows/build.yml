@@ -1,8 +1,17 @@
 name: Build
 
+# One run per commit: push already covers same-repo PR branches (the PR
+# shows that run), so there is no separate pull_request trigger. Docs-only
+# commits don't change the app, so they don't use a macOS runner.
 on:
   push:
-  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: build-${{ github.ref }}
