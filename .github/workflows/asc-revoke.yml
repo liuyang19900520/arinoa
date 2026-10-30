@@ -1,9 +1,13 @@
-name: asc-signing
+name: asc-revoke
 on:
   push:
-    branches: [ci/asc-signing]
+    branches: [ci/asc-revoke]
+permissions:
+  contents: read
+concurrency:
+  group: asc-revoke
 jobs:
-  status:
+  cert:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,4 +19,5 @@ jobs:
         run: |
           pip install -q pyjwt cryptography
           bash scripts/ci/write-asc-key.sh /tmp/asc.p8
-          python3 scripts/ci/asc_signing.py
+          python3 scripts/ci/asc_revoke.py
+          rm -f /tmp/asc.p8
