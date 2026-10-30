@@ -13,8 +13,10 @@ if "error" in c: print(c)
 for x in c.get("data",[]):
     a=x["attributes"];print(x["id"],a.get("certificateType"),"|",a.get("displayName"),"|",a.get("name"),"| exp",a.get("expirationDate"),"| serial",a.get("serialNumber"),"| active",a.get("activated"))
 print("== PROFILES ==")
-p=g("/v1/profiles?limit=200&include=bundleId&fields[profiles]=name,profileType,profileState,createdDate,expirationDate,bundleId,certificates&include=certificates")
+p=g("/v1/profiles?limit=200&fields[profiles]=name,profileType,profileState,createdDate,expirationDate,bundleId,certificates&include=bundleId,certificates")
 if "error" in p: print(p)
 for x in p.get("data",[]):
     a=x["attributes"];r=x.get("relationships",{})
     print(x["id"],a.get("profileType"),a.get("profileState"),"|",a.get("name"),"| created",a.get("createdDate"),"| exp",a.get("expirationDate"),"| certs",[i["id"] for i in r.get("certificates",{}).get("data",[]) or []])
+print("== BUNDLE IDS ==")
+for x in g("/v1/bundleIds?limit=50").get("data",[]): print(x["id"],x["attributes"].get("identifier"),x["attributes"].get("name"))
