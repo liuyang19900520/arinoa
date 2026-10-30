@@ -1,0 +1,30 @@
+name: asc-cert
+on:
+  push:
+    branches: [ci/asc-cert]
+permissions:
+  contents: read
+concurrency:
+  group: asc-cert
+jobs:
+  cert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          KEYFILE: /tmp/asc.p8
+        run: |
+          pip install -q pyjwt cryptography
+          bash scripts/ci/write-asc-key.sh /tmp/asc.p8
+          mkdir -p out
+          python3 scripts/ci/asc_cert.py
+          rm -f /tmp/asc.p8
+      # Public certificate and profiles only (no private key). 1 day.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signing-public
+          path: out/
+          retention-days: 1
