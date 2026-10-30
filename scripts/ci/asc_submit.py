@@ -41,13 +41,19 @@ if MODE=="apply":
         pid=getset("appPreviewSets",lid,"IPHONE_67")
         if get(f"/v1/appPreviewSets/{pid}/appPreviews").get("data"): print("preview exists",loc)
         else: upload("appPreviews",pid,"assets/preview.mp4")
-if MODE=="submit":
+if MODE=="reupload":
     for loc,lid in LOC.items():
         for st in get(f"/v1/appStoreVersionLocalizations/{lid}/appScreenshotSets").get("data",[]):
             for x in get(f"/v1/appScreenshotSets/{st['id']}/appScreenshots")["data"]:
                 if x["attributes"]["assetDeliveryState"]["state"]!="COMPLETE":
                     fn=x["attributes"]["fileName"]; print("reupload",loc,fn,x["attributes"]["assetDeliveryState"]["state"])
                     p("delete",req("DELETE",f"/v1/appScreenshots/{x['id']}")); upload("appScreenshots",st["id"],f"assets/{loc}/{fn}"); time.sleep(90)
+if MODE=="submit":
+    for i in range(20):
+        pend=[x["attributes"]["fileName"] for lid in LOC.values() for st in get(f"/v1/appStoreVersionLocalizations/{lid}/appScreenshotSets")["data"] for x in get(f"/v1/appScreenshotSets/{st['id']}/appScreenshots")["data"] if x["attributes"]["assetDeliveryState"]["state"]!="COMPLETE"]
+        print("pending",pend)
+        if not pend: break
+        time.sleep(30)
 if MODE in("apply","check","submit"):
     time.sleep(60 if MODE=="apply" else 0)
     v=get(f"/v1/appStoreVersions/{VID}?include=build")["data"]; print("VERSION",v["attributes"]["appStoreState"],v["attributes"]["releaseType"],"build",v["relationships"]["build"]["data"])
@@ -67,3 +73,4 @@ if MODE=="submit":
         p("item",req("POST","/v1/reviewSubmissionItems",{"data":{"type":"reviewSubmissionItems","relationships":{"reviewSubmission":{"data":{"type":"reviewSubmissions","id":rid}},"appStoreVersion":{"data":{"type":"appStoreVersions","id":VID}}}}}))
         r3=req("PATCH",f"/v1/reviewSubmissions/{rid}",{"data":{"type":"reviewSubmissions","id":rid,"attributes":{"submitted":True}}})
         p("submit",r3); print("RS",rid,r3.get("data",{}).get("attributes"))
+        time.sleep(20); v=get(f"/v1/appStoreVersions/{VID}")["data"]["attributes"]; print("FINAL",v["appStoreState"],v["releaseType"])
