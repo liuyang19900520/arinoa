@@ -1,52 +1,97 @@
 import os,sys,time,jwt,json,hashlib,requests
-MODE=sys.argv[1].strip()
+MODE=sys.argv[1].strip(); print("MODE",MODE)
 key=open(os.environ["KEYFILE"]).read()
 def tok(): return jwt.encode({"iss":os.environ["ASC_ISSUER_ID"],"iat":int(time.time()),"exp":int(time.time())+1100,"aud":"appstoreconnect-v1"},key,algorithm="ES256",headers={"kid":os.environ["ASC_KEY_ID"],"typ":"JWT"})
 B="https://api.appstoreconnect.apple.com"
 def call(m,p,body=None):
     r=requests.request(m,B+p,headers={"Authorization":"Bearer "+tok()},json=body)
-    if r.status_code>=300: return {"error":r.status_code,"body":r.text[:600]}
+    if r.status_code>=300: return {"error":r.status_code,"body":r.text[:800]}
     return r.json() if r.text else {}
-APP="6827531369"
-vs=call("GET",f"/v1/apps/{APP}/appStoreVersions?filter[platform]=IOS&limit=10")
-ver=None
-for v in vs.get("data",[]):
-    a=v["attributes"];print("VERSION",v["id"],a.get("versionString"),a.get("appStoreState"),a.get("appVersionState"),a.get("releaseType"))
-    if a.get("versionString")=="1.0.0": ver=v
-rs=call("GET",f"/v1/reviewSubmissions?filter[app]={APP}&limit=10")
-for s in rs.get("data",[]) if "error" not in rs else [rs]: print("REVIEWSUB",s.get("id"),json.dumps(s.get("attributes",s)))
-state=ver["attributes"].get("appStoreState")
-locs=call("GET",f"/v1/appStoreVersions/{ver['id']}/appStoreVersionLocalizations")["data"]
-sets={}
-def listing():
-    for l in locs:
-        loc=l["attributes"]["locale"]
-        for s in call("GET",f"/v1/appStoreVersionLocalizations/{l['id']}/appScreenshotSets")["data"]:
+def D(r): return r.get("data",[]) if "error" not in r else (print("ERR",r) or [])
+APP="6827531369"; VS="1.0.1"; BN="6"
+WN={"en":"Minor improvements.","zh":"细节优化","ja":"細かな改善を行いました。","ko":"사소한 개선 사항.","default":"Minor improvements."}
+def wn(loc):
+    for k in WN:
+        if loc.startswith(k): return WN[k]
+    return WN["default"]
+def build():
+    bs=D(call("GET",f"/v1/builds?filter[app]={APP}&filter[version]={BN}&filter[preReleaseVersion.version]={VS}&limit=5"))
+    for b in bs: a=b["attributes"]; print("BUILD",b["id"],a.get("version"),a.get("processingState"),"enc",a.get("usesNonExemptEncryption"),"expired",a.get("expired"))
+    return bs[0] if bs else None
+def versions():
+    out={}
+    for v in D(call("GET",f"/v1/apps/{APP}/appStoreVersions?filter[platform]=IOS&limit=10&include=build")):
+        a=v["attributes"];print("VERSION",v["id"],a.get("versionString"),a.get("appStoreState"),a.get("releaseType"),"build",(v["relationships"]["build"].get("data") or {}).get("id"))
+        out[a["versionString"]]=v
+    return out
+def listing(vid):
+    sets={}
+    for l in D(call("GET",f"/v1/appStoreVersions/{vid}/appStoreVersionLocalizations")):
+        loc=l["attributes"]["locale"]; print("LOC",loc,"whatsNew=",repr(l["attributes"].get("whatsNew")))
+        for s in D(call("GET",f"/v1/appStoreVersionLocalizations/{l['id']}/appScreenshotSets")):
             if s["attributes"]["screenshotDisplayType"]=="APP_IPHONE_67": sets[loc]=s["id"]
-            shots=call("GET",f"/v1/appScreenshotSets/{s['id']}/appScreenshots?limit=20")["data"]
+            shots=D(call("GET",f"/v1/appScreenshotSets/{s['id']}/appScreenshots?limit=20"))
             print("SET",loc,s["attributes"]["screenshotDisplayType"],len(shots),[(x["attributes"]["fileName"],(x["attributes"].get("assetDeliveryState") or {}).get("state")) for x in shots])
-        for p in call("GET",f"/v1/appStoreVersionLocalizations/{l['id']}/appPreviewSets")["data"]:
-            pv=call("GET",f"/v1/appPreviewSets/{p['id']}/appPreviews")["data"]
-            print("PREVIEWSET",loc,p["attributes"]["previewType"],len(pv))
-listing()
-if MODE!="replace" or state=="IN_REVIEW": sys.exit(0)
-for loc in ["en-US","zh-Hans"]:
-    sid=sets.get(loc); old=[x["id"] for x in call("GET",f"/v1/appScreenshotSets/{sid}/appScreenshots?limit=20")["data"]]
-    new=[]
-    for i in range(1,6):
-        fn=f"promo/{loc}/0{i}.png"; data=open(fn,"rb").read()
-        r=call("POST","/v1/appScreenshots",{"data":{"type":"appScreenshots","attributes":{"fileName":f"0{i}.png","fileSize":len(data)},"relationships":{"appScreenshotSet":{"data":{"type":"appScreenshotSets","id":sid}}}}})
-        if "error" in r: print("CREATE REFUSED",loc,r); sys.exit(1 if not new else 2)
-        sh=r["data"]; new.append(sh["id"])
-        for op in sh["attributes"]["uploadOperations"]:
-            requests.request(op["method"],op["url"],headers={h["name"]:h["value"] for h in op["requestHeaders"]},data=data[op["offset"]:op["offset"]+op["length"]]).raise_for_status()
-        r=call("PATCH",f"/v1/appScreenshots/{sh['id']}",{"data":{"type":"appScreenshots","id":sh["id"],"attributes":{"uploaded":True,"sourceFileChecksum":hashlib.md5(data).hexdigest()}}})
-        print("COMMIT",loc,i,"error" in r and r or "ok")
-    for o in old: print("DELETE",loc,o,call("DELETE",f"/v1/appScreenshots/{o}"))
-    print("ORDER",loc,call("PATCH",f"/v1/appScreenshotSets/{sid}/relationships/appScreenshots",{"data":[{"type":"appScreenshots","id":n} for n in new]}))
-for _ in range(30):
-    time.sleep(10); st=[]
+        for p in D(call("GET",f"/v1/appStoreVersionLocalizations/{l['id']}/appPreviewSets")):
+            print("PREVIEWSET",loc,p["attributes"]["previewType"],len(D(call("GET",f"/v1/appPreviewSets/{p['id']}/appPreviews"))))
+    return sets
+b=build(); vs=versions()
+for s in D(call("GET",f"/v1/reviewSubmissions?filter[app]={APP}&limit=10")): print("REVIEWSUB",s["id"],s["attributes"].get("state"),s["attributes"].get("submittedDate"))
+if MODE=="status":
+    for _ in range(40):
+        if b and b["attributes"]["processingState"]=="VALID": break
+        time.sleep(30); b=build()
+    if VS in vs: listing(vs[VS]["id"])
+    sys.exit(0)
+if not b or b["attributes"]["processingState"]!="VALID": print("BUILD NOT VALID, stop"); sys.exit(1)
+if MODE=="create":
+    if VS not in vs:
+        r=call("POST","/v1/appStoreVersions",{"data":{"type":"appStoreVersions","attributes":{"platform":"IOS","versionString":VS,"releaseType":"MANUAL"},"relationships":{"app":{"data":{"type":"apps","id":APP}}}}})
+        print("CREATE VERSION","ERR "+json.dumps(r) if "error" in r else r["data"]["id"])
+        if "error" in r: sys.exit(1)
+        vs=versions()
+    vid=vs[VS]["id"]
+    print("ATTACH",call("PATCH",f"/v1/appStoreVersions/{vid}/relationships/build",{"data":{"type":"builds","id":b["id"]}}) or "ok")
+    for l in D(call("GET",f"/v1/appStoreVersions/{vid}/appStoreVersionLocalizations")):
+        if not l["attributes"].get("whatsNew"):
+            r=call("PATCH",f"/v1/appStoreVersionLocalizations/{l['id']}",{"data":{"type":"appStoreVersionLocalizations","id":l["id"],"attributes":{"whatsNew":wn(l["attributes"]["locale"])}}})
+            print("WHATSNEW",l["attributes"]["locale"],"ERR "+json.dumps(r) if "error" in r else "ok")
+    versions(); listing(vid); sys.exit(0)
+vid=vs[VS]["id"]
+if MODE=="replace":
+    sets=listing(vid)
     for loc in ["en-US","zh-Hans"]:
-        st+=[(x["attributes"].get("assetDeliveryState") or {}).get("state") for x in call("GET",f"/v1/appScreenshotSets/{sets[loc]}/appScreenshots")["data"]]
-    if all(s=="COMPLETE" for s in st): break
-print("FINAL"); listing()
+        sid=sets[loc]; old=[x["id"] for x in D(call("GET",f"/v1/appScreenshotSets/{sid}/appScreenshots?limit=20"))]
+        print("OLD",loc,len(old))
+        for o in old:
+            r=call("DELETE",f"/v1/appScreenshots/{o}"); print("DELETE",loc,"ERR "+json.dumps(r) if "error" in r else "ok")
+            if "error" in r: sys.exit(1)
+        new=[]
+        for i in range(1,6):
+            fn=f"promo/{loc}/0{i}.png"; data=open(fn,"rb").read()
+            r=call("POST","/v1/appScreenshots",{"data":{"type":"appScreenshots","attributes":{"fileName":f"0{i}.png","fileSize":len(data)},"relationships":{"appScreenshotSet":{"data":{"type":"appScreenshotSets","id":sid}}}}})
+            if "error" in r: print("CREATE REFUSED",loc,i,r); sys.exit(1)
+            sh=r["data"]; new.append(sh["id"])
+            for op in sh["attributes"]["uploadOperations"]:
+                requests.request(op["method"],op["url"],headers={h["name"]:h["value"] for h in op["requestHeaders"]},data=data[op["offset"]:op["offset"]+op["length"]]).raise_for_status()
+            r=call("PATCH",f"/v1/appScreenshots/{sh['id']}",{"data":{"type":"appScreenshots","id":sh["id"],"attributes":{"uploaded":True,"sourceFileChecksum":hashlib.md5(data).hexdigest()}}})
+            print("COMMIT",loc,i,"ERR "+json.dumps(r) if "error" in r else "ok")
+        print("ORDER",loc,call("PATCH",f"/v1/appScreenshotSets/{sid}/relationships/appScreenshots",{"data":[{"type":"appScreenshots","id":n} for n in new]}) or "ok")
+    for _ in range(40):
+        time.sleep(15); st=[]
+        for loc in ["en-US","zh-Hans"]: st+=[(x["attributes"].get("assetDeliveryState") or {}).get("state") for x in D(call("GET",f"/v1/appScreenshotSets/{sets[loc]}/appScreenshots"))]
+        print("STATES",st)
+        if all(s=="COMPLETE" for s in st): break
+    print("FINAL"); listing(vid); sys.exit(0)
+if MODE=="submit":
+    listing(vid)
+    ex=D(call("GET",f"/v1/reviewSubmissions?filter[app]={APP}&filter[state]=READY_FOR_REVIEW"))
+    r={"data":ex[0]} if ex else call("POST","/v1/reviewSubmissions",{"data":{"type":"reviewSubmissions","attributes":{"platform":"IOS"},"relationships":{"app":{"data":{"type":"apps","id":APP}}}}})
+    if "error" in r: print("RS ERR",r); sys.exit(1)
+    rid=r["data"]["id"]; print("RS",rid)
+    r=call("POST","/v1/reviewSubmissionItems",{"data":{"type":"reviewSubmissionItems","relationships":{"reviewSubmission":{"data":{"type":"reviewSubmissions","id":rid}},"appStoreVersion":{"data":{"type":"appStoreVersions","id":vid}}}}})
+    print("ITEM","ERR "+json.dumps(r) if "error" in r else "ok")
+    r=call("PATCH",f"/v1/reviewSubmissions/{rid}",{"data":{"type":"reviewSubmissions","id":rid,"attributes":{"submitted":True}}})
+    print("SUBMIT","ERR "+json.dumps(r) if "error" in r else r["data"]["attributes"])
+    time.sleep(30); versions()
+    for s in D(call("GET",f"/v1/reviewSubmissions?filter[app]={APP}&limit=10")): print("REVIEWSUB",s["id"],s["attributes"].get("state"))
