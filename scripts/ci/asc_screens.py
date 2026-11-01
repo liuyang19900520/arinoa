@@ -95,3 +95,23 @@ if MODE=="submit":
     print("SUBMIT","ERR "+json.dumps(r) if "error" in r else r["data"]["attributes"])
     time.sleep(30); versions()
     for s in D(call("GET",f"/v1/reviewSubmissions?filter[app]={APP}&limit=10")): print("REVIEWSUB",s["id"],s["attributes"].get("state"))
+if MODE=="info":
+    a=call("GET",f"/v1/apps/{APP}"); print("primaryLocale",a.get("data",{}).get("attributes",{}).get("primaryLocale"))
+    for v in D(call("GET",f"/v1/apps/{APP}/appStoreVersions?filter[versionString]={VS}")):
+        print("VER",v["id"],v["attributes"].get("appStoreState"),v["attributes"].get("platform"))
+        for l in D(call("GET",f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations?limit=50")):
+            lid=l["id"]; loc=l["attributes"]["locale"]
+            ss=D(call("GET",f"/v1/appStoreVersionLocalizations/{lid}/appScreenshotSets?limit=50"))
+            ps=D(call("GET",f"/v1/appStoreVersionLocalizations/{lid}/appPreviewSets?limit=50"))
+            det=[]
+            for s in ss:
+                n=len(D(call("GET",f"/v1/appScreenshotSets/{s['id']}/appScreenshots?limit=50")))
+                det.append(f"{s['attributes']['screenshotDisplayType']}:{n}")
+            print("LOC",loc,"sets",len(ss),det,"previewSets",len(ps))
+    r=call("GET",f"/v1/apps/{APP}/appAvailabilityV2")
+    aid=r.get("data",{}).get("id"); print("avail",aid,r.get("data",{}).get("attributes"), r.get("error"))
+    if aid:
+        t=call("GET",f"/v2/appAvailabilities/{aid}/territoryAvailabilities?limit=200&include=territory")
+        for x in D(t):
+            if x.get("relationships",{}).get("territory",{}).get("data",{}).get("id")=="JPN": print("JPN",x["attributes"])
+        print("territories",len(D(t)))
