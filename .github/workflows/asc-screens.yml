@@ -1,9 +1,9 @@
-name: asc-status
+name: asc-screens
 on:
   push:
-    branches: [ci/asc-status]
+    branches: [ci/asc-screens]
 jobs:
-  status:
+  run:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,6 +13,7 @@ jobs:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
           KEYFILE: /tmp/asc.p8
         run: |
-          pip install -q pyjwt cryptography
+          pip install -q pyjwt cryptography requests
           bash scripts/ci/write-asc-key.sh /tmp/asc.p8
-          python3 scripts/ci/asc_status.py
+          python3 scripts/ci/asc_screens.py "$(cat scripts/ci/MODE)"
+          rm -f /tmp/asc.p8
