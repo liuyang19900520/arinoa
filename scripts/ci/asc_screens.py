@@ -8,7 +8,7 @@ def call(m,p,body=None):
     if r.status_code>=300: return {"error":r.status_code,"body":r.text[:800]}
     return r.json() if r.text else {}
 def D(r): return r.get("data",[]) if "error" not in r else (print("ERR",r) or [])
-APP="6827531369"; VS="1.0.1"; BN="6"
+APP="6827531369"; VS="1.0.2"; BN="7"
 WN={"en":"Minor improvements.","zh":"细节优化","ja":"細かな改善を行いました。","ko":"사소한 개선 사항.","default":"Minor improvements."}
 def wn(loc):
     for k in WN:
@@ -82,6 +82,15 @@ if MODE=="replace":
         for loc in ["en-US","zh-Hans"]: st+=[(x["attributes"].get("assetDeliveryState") or {}).get("state") for x in D(call("GET",f"/v1/appScreenshotSets/{sets[loc]}/appScreenshots"))]
         print("STATES",st)
         if all(s=="COMPLETE" for s in st): break
+    print("FINAL"); listing(vid); sys.exit(0)
+if MODE=="delpreview":
+    for l in D(call("GET",f"/v1/appStoreVersions/{vid}/appStoreVersionLocalizations")):
+        loc=l["attributes"]["locale"]
+        if loc not in ["en-US","zh-Hans"]: continue
+        for p in D(call("GET",f"/v1/appStoreVersionLocalizations/{l['id']}/appPreviewSets")):
+            for x in D(call("GET",f"/v1/appPreviewSets/{p['id']}/appPreviews?limit=20")):
+                r=call("DELETE",f"/v1/appPreviews/{x['id']}"); print("DELPREVIEW",loc,p["attributes"]["previewType"],x["attributes"].get("fileName"),"ERR "+json.dumps(r) if "error" in r else "ok")
+                if "error" in r: sys.exit(1)
     print("FINAL"); listing(vid); sys.exit(0)
 if MODE=="submit":
     listing(vid)
