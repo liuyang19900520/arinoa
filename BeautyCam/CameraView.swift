@@ -234,7 +234,7 @@ struct ContentView: View {
                     .accessibilityIdentifier("grid")
             }
             Spacer(minLength: 0)
-            slot(Text("对比").font(.system(size: 15, weight: .medium)))
+            slot(Text("对比").font(.system(size: 15, weight: .medium)).lineLimit(1).minimumScaleFactor(0.6))
                 .onLongPressGesture(minimumDuration: 0, perform: {}, onPressingChanged: { vm.params.bypass = $0 })
             if !vm.photoMode {
                 topIcon("arrow.triangle.2.circlepath", on: false) { vm.switchCamera() }
