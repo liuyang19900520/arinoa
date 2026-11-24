@@ -1,0 +1,74 @@
+# Submit an already-uploaded TestFlight build to App Store review.
+# Manual only: Actions > Submit for review > Run workflow. Start with dry_run.
+# Needs secrets ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (the same ones TestFlight uses).
+name: Submit for review
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "App version, e.g. 1.0.2"
+        required: true
+      build:
+        description: "Build number (empty = newest processed build of that version)"
+        required: false
+        default: ""
+      release_type:
+        description: "After approval: manual = Yang releases by hand; automatic = goes live at once"
+        type: choice
+        options: [manual, automatic]
+        default: manual
+      dry_run:
+        description: "Dry run: only read and print what would happen"
+        type: boolean
+        default: true
+      confirm:
+        description: "Type SUBMIT to proceed"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: submit-review
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check confirmation
+        if: inputs.confirm != 'SUBMIT'
+        run: |
+          echo "::error::confirm must be exactly SUBMIT"
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pyjwt cryptography requests
+
+      - name: Write API key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: scripts/ci/write-asc-key.sh "$RUNNER_TEMP/asc_key.p8"
+
+      - name: Submit
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_PATH: ${{ runner.temp }}/asc_key.p8
+          VERSION: ${{ inputs.version }}
+          BUILD: ${{ inputs.build }}
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: python3 scripts/ci/submit-review.py
+
+      - name: Remove API key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/asc_key.p8"

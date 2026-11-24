@@ -1,7 +1,6 @@
-# Archive, sign, and upload Arinoa to TestFlight. Manual only for now
-# (Actions tab → TestFlight → Run workflow) to avoid accidental uploads;
-# add a push trigger once a develop branch exists. Uploading never submits
-# for review.
+# Archive, sign, and upload Arinoa to TestFlight on every push to develop,
+# or by hand (Actions tab → TestFlight → Run workflow). Uploading never
+# submits for review.
 #
 # Needs secrets ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (upload), plus the fixed
 # signing identity: DIST_CERT_P12_BASE64, DIST_CERT_PASSWORD,
@@ -11,6 +10,13 @@
 name: TestFlight
 
 on:
+  push:
+    branches: [develop]
+    # Docs-only pushes don't change the app, so they shouldn't spend a build.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "submissions/**"
   workflow_dispatch:
     inputs:
       allow_auto_signing:
