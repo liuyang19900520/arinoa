@@ -1,28 +1,71 @@
 # AGENTS.md — rules for AI agents working on Arinoa
 
 Arinoa is an iOS beauty camera app (Swift, iOS 17+). The current target and bundle id still use the old name: `BeautyCam`, `com.arinoa.beautycam`, team `3T7MJA53W9`.
+Build and device commands are in [CLAUDE.md](CLAUDE.md). These rules apply to every agent: Claude sessions on the Mac,
+Claude cloud sessions, and any bot that dispatches work to them.
+
+## Who works where
+
+| Channel | Runs on | Can do |
+|---|---|---|
+| Yang on the Mac (`~/Code/arinoa`) | Mac | everything: generate the project, build, install on the iPhone |
+| Yang on the Claude phone app, cloud session | Linux cloud container | edit code, push a branch, open a PR |
+| A bot → `claude --remote "…"` | Linux cloud container | same as above; the session shows up in Yang's Claude app |
+| Yang on the phone → Remote Control on the Mac's `arinoa` folder | Mac | everything, while the Mac is on |
+
+Cloud containers have **no Xcode**: no `xcodegen`-then-`xcodebuild`, no device install, no XCUITest.
+Building and device testing happen on the Mac (or in the CI build on GitHub Actions).
 
 ## Rules
-- **GitHub is the single source of truth.** Everything lives in this repo. Local-only changes and notes don't count.
-- **Work on a feature branch** (`feature/…`, `fix/…`, `ci/…`, `docs/…`). Never commit straight to `main`.
-- **Open a PR into `main`.** Keep each PR small and on one topic, and describe what changed and how you checked it.
+- **GitHub is the single source of truth.** Work that isn't pushed doesn't exist. Push your branch before you stop.
+- **Work on a branch** (`feature/…`, `fix/…`, `ci/…`, `docs/…`, `claude/…`, `codex/…`). Never commit straight to `main` or `develop`.
+- **Open a PR into `main`** (the current default branch) unless Yang says otherwise. Keep each PR small and on one topic,
+  and describe what changed and how you checked it.
 - **Never merge a PR without Yang's explicit approval.** Don't delete branches, change secrets, or change the default branch.
 - Don't run the TestFlight workflow or upload builds unless Yang asks.
+- Secrets live only in GitHub Secrets. Never commit keys, certificates, or personal data
+  (`tools/screens/` and device logs contain personal photos and are gitignored).
 
 ## Project
 - The Xcode project is generated with XcodeGen from `project.yml`. Edit `project.yml`, not the `.xcodeproj`, and run `xcodegen generate`.
 - Build check: `xcodebuild -project BeautyCam.xcodeproj -scheme BeautyCam -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO`
-- The CI build must pass before a PR is ready for review.
+- The CI build (`.github/workflows/build.yml`, runs on every push except docs-only) must pass before a PR is ready for review.
 
 See `PLAN.md` for the current to-do list.
 
+## Checks before a PR is ready
+- On the Mac: `xcodegen generate`, then the build check above.
+- In a cloud session: these can't run. Rely on the CI build result, say in the PR description and in the final message
+  what was not verified, and list what Yang should test on the device.
+- Camera, beauty effects, and anything visual are confirmed only by Yang's manual test on the phone.
+
 ## Release flow (Yang's standard)
+
+> Target flow, shared with shadow-player. It is **not fully in effect yet**: the default branch is still `main`,
+> `develop` is behind `main`, and TestFlight uploads are manual only (`workflow_dispatch`). Until Yang switches
+> the default branch to `develop` and turns on upload-on-push, PRs go into `main` (see Rules).
+
 - `develop` is where work is integrated and tested. `master` always equals the version live on the App Store.
 - Every change goes `feature/*` / `claude/*` / `codex/*` → PR into `develop`. Pushes to `develop` upload a TestFlight build.
 - Yang verifies the build in TestFlight, then says "推送 App Store". Only then submit for review.
 - After Apple approves and the app is live, merge `develop` into `master` and tag `vX.Y.Z`. No release branches.
 - Urgent fix for live users: `hotfix/*` from `master` → PR into `master`, tag, then merge back into `develop`.
 - Never merge, submit for review, delete branches, or change secrets/default branch without Yang's explicit approval.
+
+## Dispatching work to cloud sessions
+
+Bots don't edit code themselves. They start Claude cloud sessions in a clone of this repository:
+
+```bash
+claude --remote "<task>"
+```
+
+- **One task per session.** Split unrelated requests into separate sessions.
+- **Write the task so it stands alone.** Include: the goal, the files or screen involved, what "done" looks like,
+  and this line: *"Follow AGENTS.md: work on a new branch, push it, open a PR, don't merge."*
+- **Don't ask a session to** merge, tag, push to `main`/`develop`/`master`, run TestFlight, or touch secrets.
+  These need Yang's explicit go-ahead, given by Yang directly, not relayed from another message.
+- **Report back to Yang** with the PR link, a one-line summary, and what needs a device test.
 
 ## Release signing (CI)
 
